@@ -4,8 +4,9 @@ from sqlalchemy import (
     Boolean,
 )
 from sqlalchemy.orm import Session
+from sqlalchemy.ext.declarative import declarative_base
 
-from app.database.conn import Base
+from app.database.conn import Base, db
 
 
 class BaseMixin:
@@ -19,18 +20,47 @@ class BaseMixin:
     def __hash__(self):
         return hash(self.id)
     
-    def create(self, session: Session, auto_commit=False, **kwargs):
+    @classmethod
+    def create(cls, session: Session, auto_commit=False, **kwargs):
 
-        for col in self.all_columns():
+        """
+        테이블 데이터 적재 전용 함수
+        :param session:
+        :param auto_commit: 자동 커밋 여부
+        :param kwargs: 적재 할 데이터
+        :return:
+        """
+
+        obj = cls()
+        for col in obj.all_columns():
             col_name = col.name
             if col_name in kwargs:
-                setattr(self, col_name, kwargs.get(col_name))
-        session.add(self)
+                setattr(obj, col_name, kwargs.get(col_name))
+        session.add(obj)
         session.flush()
         if auto_commit:
             session.commit()
-        return self
+        return obj
     
+    @classmethod
+    def get(cls, **kwargs):
+
+        """
+        Simply get a Row
+        :param kwargs:
+        :return:
+        """
+
+        session = next(db.session())
+        query = session.query(cls)
+        for key, val in kwargs.items():
+            col = getattr(cls, key)
+            query = query.filter(col == val)
+
+        if query.count() > 1:
+            raise Exception("Only a row is supposed to be returned, but got more than one.")
+        return query.first()
+
 
 class Users(Base, BaseMixin):
     __tablename__ = "users"
